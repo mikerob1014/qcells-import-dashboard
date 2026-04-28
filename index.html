@@ -681,18 +681,145 @@ function renderLine() {
   });
 }
 
-// ── Live data stub ───────────────────────────────────────────────
-function loadLive() {
+// ── Live data ────────────────────────────────────────────────────
+const BASE_URL = 'https://datawebws.usitc.gov/dataweb';
+
+const HTS_CODES = ['8541430010','8541420010','8541430080','8541420080'];
+
+// Build the USITC runReport query for monthly imports by country, last 24 months
+function buildQuery() {
+  const now = new Date();
+  const endMonth   = now.getMonth() + 1;
+  const endYear    = now.getFullYear();
+  const startDate  = new Date(now); startDate.setMonth(startDate.getMonth() - 23);
+  const startMonth = startDate.getMonth() + 1;
+  const startYear  = startDate.getFullYear();
+
+  return {
+    reportOptions: {
+      tradeType: 'Import',
+      classificationSystem: 'HTS',
+      measureType: 'CIFValue',     // CIF value in $
+      aggregationPeriod: 'Monthly',
+      startMonth: startMonth,
+      startYear:  startYear,
+      endMonth:   endMonth,
+      endYear:    endYear,
+    },
+    commodities: HTS_CODES.map(hts => ({ commodityCode: hts })),
+    countries: [{ countryCode: 'ALL' }],  // all countries, we'll filter client-side
+    aggregations: {
+      commodityAggregation: 'Individual',
+      countryAggregation:   'Individual',
+    }
+  };
+}
+
+// Parse the USITC response JSON into our internal data shape
+function parseResponse(json) {
+  try {
+    const tables = json?.dto?.tables;
+    if (!tables || !tables.length) throw new Error('No tables in response');
+
+    // Build lookup: { hts: { country: [ monthlyUsdValues... ] } }
+    const result = {};
+    HTS_CODES.forEach(h => { result[h.replace(/(\d{4})(\d{2})(\d{4})/,'$1.$2.$3')] = {}; });
+
+    tables.forEach(table => {
+      const htsFull = table?.title || '';
+      // match HTS key from product list
+      const prod = PRODUCTS.find(p => htsFull.includes(p.hts.replace(/\./g,'')));
+      if (!prod) return;
+
+      const rowGroups = table?.row_groups?.[0]?.rowsNew || [];
+      rowGroups.forEach(row => {
+        const entries = row.rowEntries || [];
+        const country = entries[0]?.value;
+        if (!country) return;
+        const values = entries.slice(1).map(e => {
+          const v = parseFloat((e?.value || '0').replace(/,/g,''));
+          return isNaN(v) ? 0 : Math.round(v / 1000); // convert $ to $K, display as $M later
+        });
+        if (!result[prod.hts]) result[prod.hts] = {};
+        result[prod.hts][country] = values;
+      });
+    });
+
+    return result;
+  } catch(e) {
+    console.error('Parse error:', e);
+    return null;
+  }
+}
+
+// Ingest live data into dashboard — replace sample series with real values
+function ingestLiveData(parsed) {
+  if (!parsed) { showError('Could not parse API response. Running on sample data.'); return; }
+
+  // Override makeSeries with live lookup
+  window._liveData = parsed;
+  window._usingLive = true;
+
+  // Update badge and timestamp
+  document.getElementById('dataBadge').textContent  = 'Live data';
+  document.getElementById('dataBadge').className    = 'badge live';
+  document.getElementById('lastUpdated').textContent = 'Live — USITC DataWeb · updated ' + new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  renderChartPills();
+  renderLine();
+}
+
+function showError(msg) {
+  document.getElementById('dataBadge').textContent = 'Error — sample data';
+  document.getElementById('dataBadge').className   = 'badge';
+  alert(msg);
+}
+
+async function loadLive() {
   const token = document.getElementById('apiToken').value.trim();
   if (!token) { alert('Paste your USITC DataWeb API token first.'); return; }
+
+  const btn = document.querySelector('.api-btn');
+  btn.textContent = 'Loading…';
+  btn.disabled = true;
   document.getElementById('dataBadge').textContent = 'Connecting…';
-  // TODO: replace with actual USITC DataWeb API endpoint when confirmed
-  // fetch('https://dataweb.usitc.gov/api/...', { headers: { Authorization: `Bearer ${token}` } })
-  //   .then(r => r.json()).then(data => ingestLiveData(data))
-  setTimeout(() => {
-    alert('Live API endpoint pending USITC documentation confirmation.\nRunning on sample data.');
-    document.getElementById('dataBadge').textContent = 'Sample data';
-  }, 600);
+
+  try {
+    const query = buildQuery();
+    const res = await fetch(`${BASE_URL}/api/v2/report2/runReport`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify(query),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`API returned ${res.status}: ${txt.slice(0,200)}`);
+    }
+
+    const json = await res.json();
+    const parsed = parseResponse(json);
+    ingestLiveData(parsed);
+
+  } catch(err) {
+    console.error(err);
+    showError(`Could not connect to USITC API.\n\n${err.message}\n\nRunning on sample data.`);
+  } finally {
+    btn.textContent = 'Load live data ↗';
+    btn.disabled = false;
+  }
+}
+
+// Override makeSeries to use live data when available
+const _makeSeries_sample = makeSeries;
+function makeSeries(hts, country) {
+  if (window._usingLive && window._liveData?.[hts]?.[country]) {
+    return window._liveData[hts][country];
+  }
+  return _makeSeries_sample(hts, country);
 }
 
 // ── Init ─────────────────────────────────────────────────────────
