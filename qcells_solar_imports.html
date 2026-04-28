@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>U.S. Solar Import Intelligence — Qcells Market Intel</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue:       #1B4FBF;
+    --blue-light: #3A7BF7;
+    --blue-pale:  #EBF1FE;
+    --green:      #0F7A5A;
+    --green-light:#19B87C;
+    --green-pale: #E6F7F1;
+    --red:        #C63B2A;
+    --amber:      #B86A00;
+    --amber-pale: #FEF4E3;
+    --bg:         #F5F6F8;
+    --surface:    #FFFFFF;
+    --border:     #E2E5EC;
+    --text-1:     #0D1117;
+    --text-2:     #4A5160;
+    --text-3:     #8B92A5;
+    --font:       'DM Sans', sans-serif;
+    --mono:       'DM Mono', monospace;
+    --radius:     10px;
+    --radius-sm:  6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-1);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+  .logo {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--blue);
+  }
+  .divider { width: 1px; height: 18px; background: var(--border); }
+  .topbar-title { font-size: 14px; font-weight: 400; color: var(--text-2); }
+  .badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--amber-pale);
+    color: var(--amber);
+    letter-spacing: .02em;
+  }
+  .badge.live { background: var(--green-pale); color: var(--green); }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  #lastUpdated { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+
+  /* ── Main layout ── */
+  .main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Metrics row ── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .met {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    border-top: 3px solid transparent;
+    transition: box-shadow .15s;
+  }
+  .met:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+  .met-label {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-3);
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .met-hts {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .met-value { font-size: 22px; font-weight: 600; color: var(--text-1); line-height: 1; }
+  .met-mw { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+  .met-delta { font-size: 12px; font-weight: 500; margin-top: 5px; }
+  .up { color: var(--green); }
+  .dn { color: var(--red); }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-3);
+    margin-bottom: 4px;
+  }
+  .section-sub { font-size: 13px; font-weight: 500; color: var(--text-1); }
+
+  /* ── Pills ── */
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill {
+    font-size: 12px;
+    font-weight: 400;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: all .15s;
+    font-family: var(--font);
+    line-height: 1.6;
+  }
+  .pill:hover { border-color: var(--text-3); color: var(--text-1); }
+  .pill.on { font-weight: 500; }
+  .sel-all {
+    font-size: 11px;
+    color: var(--text-3);
+    cursor: pointer;
+    text-decoration: underline;
+    background: none;
+    border: none;
+    font-family: var(--font);
+    padding: 2px 0;
+    margin-top: 4px;
+    display: block;
+  }
+  .sel-all:hover { color: var(--text-2); }
+
+  /* ── Map legend ── */
+  .map-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .map-legend { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-3); }
+  .leg-bar {
+    width: 120px; height: 7px; border-radius: 4px;
+    background: linear-gradient(to right, #1B4FBF, #93B9FA, #f0f0f0, #F5A89A, #C63B2A);
+  }
+
+  /* ── Map ── */
+  .map-wrap { position: relative; }
+  #mapSvg { width: 100%; display: block; border-radius: var(--radius-sm); }
+
+  /* ── Tooltip ── */
+  .tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .12s;
+    z-index: 50;
+    min-width: 160px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.1);
+  }
+  .tt-country { font-weight: 600; margin-bottom: 6px; font-size: 13px; }
+  .tt-row { display: flex; justify-content: space-between; gap: 20px; color: var(--text-2); margin-bottom: 2px; }
+
+  /* ── Chart controls ── */
+  .chart-controls { display: flex; gap: 24px; margin-bottom: 14px; flex-wrap: wrap; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 6px; }
+  .ctrl-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-3);
+  }
+
+  /* ── Summary chips ── */
+  .chips { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+  }
+  .chip b { color: var(--text-1); font-weight: 600; }
+
+  /* ── Chart legend ── */
+  .chart-legend { display: flex; gap: 20px; margin-bottom: 10px; flex-wrap: wrap; }
+  .leg-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); }
+  .leg-line-solid { width: 20px; height: 2px; border-radius: 1px; }
+  .leg-line-dash { width: 20px; height: 0; border-top: 2px dashed; }
+
+  /* ── Chart wrap ── */
+  .chart-wrap { position: relative; height: 220px; }
+  .axis-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-3);
+    margin-top: 5px;
+    font-family: var(--mono);
+  }
+
+  /* ── API section ── */
+  .api-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 24px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .api-label { font-size: 12px; color: var(--text-2); font-weight: 500; white-space: nowrap; }
+  .api-input {
+    flex: 1;
+    min-width: 260px;
+    max-width: 400px;
+    font-size: 12px;
+    font-family: var(--mono);
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text-1);
+    outline: none;
+  }
+  .api-input:focus { border-color: var(--blue-light); background: var(--surface); }
+  .api-btn {
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--font);
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--blue);
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s;
+  }
+  .api-btn:hover { background: var(--blue-light); }
+  .api-note { font-size: 11px; color: var(--text-3); }
+
+  /* ── Footer ── */
+  .footer {
+    padding: 20px 32px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-3);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--surface);
+    margin-top: 8px;
+  }
+
+  @media (max-width: 800px) {
+    .main { padding: 16px; }
+    .topbar { padding: 0 16px; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 500px) {
+    .metrics { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="logo">Qcells</span>
+    <div class="divider"></div>
+    <span class="topbar-title">U.S. Solar Import Intelligence</span>
+  </div>
+  <div class="topbar-right">
+    <span id="lastUpdated">Sample data — replace with USITC token for live</span>
+    <span class="badge" id="dataBadge">Sample data</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- API row -->
+  <div class="api-card">
+    <span class="api-label">USITC DataWeb API token</span>
+    <input class="api-input" type="password" id="apiToken" placeholder="Paste your token from dataweb.usitc.gov →" />
+    <button class="api-btn" onclick="loadLive()">Load live data ↗</button>
+    <span class="api-note">Token stored in session only. Requires Login.gov account at dataweb.usitc.gov</span>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics" id="metrics"></div>
+
+  <!-- Map card -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="section-label">Country of origin</div>
+        <div class="section-sub">Rolling 3-month import delta by source country</div>
+      </div>
+      <div class="pills" id="htsPills"></div>
+    </div>
+    <div class="map-meta" style="margin-bottom:12px">
+      <div class="map-legend">
+        <span>Decreasing</span>
+        <div class="leg-bar"></div>
+        <span>Increasing</span>
+      </div>
+      <span style="font-size:11px;color:var(--text-3)">Hover a country for detail</span>
+    </div>
+    <div class="map-wrap">
+      <div class="tooltip" id="tooltip"></div>
+      <svg id="mapSvg" viewBox="0 0 960 440"></svg>
+    </div>
+  </div>
+
+  <!-- Line chart card -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="section-label">Monthly import trend</div>
+        <div class="section-sub">Cumulative for selected HTS codes &amp; countries — last 24 months</div>
+      </div>
+    </div>
+
+    <div class="chart-controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">HTS code</span>
+        <div class="pills" id="chartHts"></div>
+        <button class="sel-all" onclick="selAllHts()">select all</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Country</span>
+        <div class="pills" id="chartCountry"></div>
+        <button class="sel-all" onclick="selAllCtry()">select all</button>
+      </div>
+    </div>
+
+    <div class="chips" id="chips"></div>
+
+    <div class="chart-legend">
+      <div class="leg-item">
+        <div class="leg-line-solid" style="background:var(--blue)"></div>
+        <span>Value ($M) — left axis</span>
+      </div>
+      <div class="leg-item">
+        <div class="leg-line-dash" style="border-color:var(--green)"></div>
+        <span>Volume (MW) — right axis</span>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="lineChart"></canvas>
+    </div>
+    <div class="axis-labels">
+      <span>← Import value (USD $M)</span>
+      <span>Import volume (MW) →</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <span>Sources: USITC DataWeb · HTS 8541.42.0010, 8541.43.0010, 8541.42.0080, 8541.43.0080 · Imports for consumption · CIF value</span>
+  <span>Qcells North America Market Intelligence · Internal use only</span>
+</div>
+
+<script>
+// ── Data config ──────────────────────────────────────────────────
+const PRODUCTS = [
+  { hts: '8541.43.0010', short: 'cSi modules',    color: '#1B4FBF' },
+  { hts: '8541.42.0010', short: 'cSi cells',       color: '#3A7BF7' },
+  { hts: '8541.43.0080', short: 'Non-cSi modules', color: '#0F7A5A' },
+  { hts: '8541.42.0080', short: 'Non-cSi cells',   color: '#19B87C' },
+];
+
+const COUNTRIES = ['China','Vietnam','Cambodia','Malaysia','Thailand','South Korea','Taiwan','India'];
+
+const COUNTRY_ISO = {
+  China:'156', Vietnam:'704', Cambodia:'116', Malaysia:'458',
+  Thailand:'764', 'South Korea':'410', Taiwan:'158', India:'356',
+  Mexico:'484', Canada:'124', Japan:'392', Indonesia:'360',
+  Germany:'276', Bangladesh:'050', Philippines:'608',
+};
+
+const DELTA = {
+  '8541.43.0010': { China:-22, Vietnam:18, Cambodia:11, Malaysia:-4, Thailand:8,  'South Korea':2,  Taiwan:-3, India:14, Mexico:5, Canada:1, Japan:-1, Indonesia:7,  Germany:0, Bangladesh:4, Philippines:3 },
+  '8541.42.0010': { China:-15, Vietnam:10, Cambodia:6,  Malaysia:-2, Thailand:5,  'South Korea':4,  Taiwan:-1, India:10, Mexico:3, Canada:0, Japan:0,  Indonesia:4,  Germany:1, Bangladesh:2, Philippines:1 },
+  '8541.43.0080': { China:5,   Vietnam:3,  Cambodia:1,  Malaysia:8,  Thailand:2,  'South Korea':12, Taiwan:15, India:6,  Mexico:2, Canada:1, Japan:8,  Indonesia:0,  Germany:4, Bangladesh:0, Philippines:0 },
+  '8541.42.0080': { China:3,   Vietnam:2,  Cambodia:0,  Malaysia:6,  Thailand:1,  'South Korea':9,  Taiwan:11, India:4,  Mexico:1, Canada:0, Japan:5,  Indonesia:0,  Germany:2, Bangladesh:0, Philippines:0 },
+};
+
+const BASE_USD = {
+  '8541.43.0010': { China:820, Vietnam:310, Cambodia:140, Malaysia:220, Thailand:180, 'South Korea':90, Taiwan:85, India:65 },
+  '8541.42.0010': { China:180, Vietnam:65,  Cambodia:35,  Malaysia:55,  Thailand:45,  'South Korea':35, Taiwan:28, India:30 },
+  '8541.43.0080': { China:55,  Vietnam:22,  Cambodia:8,   Malaysia:35,  Thailand:14,  'South Korea':45, Taiwan:52, India:22 },
+  '8541.42.0080': { China:18,  Vietnam:8,   Cambodia:3,   Malaysia:12,  Thailand:5,   'South Korea':16, Taiwan:20, India:8  },
+};
+
+const MW_R = { '8541.43.0010':4.5, '8541.42.0010':8.2, '8541.43.0080':3.8, '8541.42.0080':7.1 };
+
+const METRICS_DATA = [
+  { label:'cSi modules',    hts:'8541.43.0010', val:'$1,840M', mw:'4,240 MW', delta:'-3.4%', up:false, color:'#1B4FBF' },
+  { label:'cSi cells',      hts:'8541.42.0010', val:'$420M',   mw:'960 MW',   delta:'-1.8%', up:false, color:'#3A7BF7' },
+  { label:'Non-cSi modules',hts:'8541.43.0080', val:'$310M',   mw:'180 MW',   delta:'+9.1%', up:true,  color:'#0F7A5A' },
+  { label:'Non-cSi cells',  hts:'8541.42.0080', val:'$85M',    mw:'45 MW',    delta:'+5.3%', up:true,  color:'#19B87C' },
+];
+
+// ── Months ───────────────────────────────────────────────────────
+const MONTHS = (() => {
+  const a = [];
+  const now = new Date(2024, 11, 1);
+  for (let i = 23; i >= 0; i--) {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - i);
+    a.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+  }
+  return a;
+})();
+
+// ── Render metrics ───────────────────────────────────────────────
+document.getElementById('metrics').innerHTML = METRICS_DATA.map(m => `
+  <div class="met" style="border-top-color:${m.color}">
+    <span class="met-hts">${m.hts}</span>
+    <div class="met-label">${m.label}</div>
+    <div class="met-value">${m.val}</div>
+    <div class="met-mw">${m.mw}</div>
+    <div class="met-delta ${m.up ? 'up' : 'dn'}">${m.delta} &nbsp;3-mo</div>
+  </div>`).join('');
+
+// ── Sample series helpers ────────────────────────────────────────
+function makeSeries(hts, country) {
+  const base = (BASE_USD[hts] || {})[country] || 8;
+  const d = ((DELTA[hts] || {})[country] || 0) / 100;
+  return MONTHS.map((_, i) => Math.max(0, Math.round(
+    base * (1 + d * (i / 23)) +
+    (Math.sin(i * 0.8 + country.length) * 0.12 + Math.cos(i * 1.4) * 0.08) * base
+  )));
+}
+
+function cumulative() {
+  const usd = new Array(24).fill(0);
+  const mw  = new Array(24).fill(0);
+  chartHts.forEach(hts => {
+    const r = MW_R[hts] || 4.5;
+    chartCtry.forEach(c => {
+      makeSeries(hts, c).forEach((v, i) => { usd[i] += v; mw[i] += Math.round(v * r); });
+    });
+  });
+  return { usd, mw };
+}
+
+// ── Map ──────────────────────────────────────────────────────────
+let activeMapHts = '8541.43.0010';
+let worldData = null;
+
+function dColor(v) {
+  if (!v) return '#e8eaed';
+  const t = Math.min(Math.abs(v), 25) / 25;
+  return v < 0
+    ? `rgb(${Math.round(170+t*(27-170))},${Math.round(205+t*(79-205))},${Math.round(240+t*(191-240))})`
+    : `rgb(${Math.round(245+t*(198-245))},${Math.round(180+t*(59-180))},${Math.round(160+t*(42-160))})`;
+}
+
+function renderMapPills() {
+  document.getElementById('htsPills').innerHTML = PRODUCTS.map(p => `
+    <button class="pill ${activeMapHts === p.hts ? 'on' : ''}"
+      style="${activeMapHts === p.hts ? `background:${p.color}15;color:${p.color};border-color:${p.color}` : ''}"
+      onclick="setMapHts('${p.hts}')">${p.short}</button>`).join('');
+}
+
+function setMapHts(h) { activeMapHts = h; renderMapPills(); renderMap(); }
+
+function renderMap() {
+  if (!worldData) return;
+  const svg = d3.select('#mapSvg');
+  const proj = d3.geoNaturalEarth1().scale(162).translate([480, 230]);
+  const path = d3.geoPath(proj);
+  const deltas = DELTA[activeMapHts] || {};
+  const iso2n = {};
+  Object.entries(COUNTRY_ISO).forEach(([n, id]) => iso2n[id] = n);
+  svg.selectAll('path').remove();
+  svg.selectAll('path')
+    .data(topojson.feature(worldData, worldData.objects.countries).features)
+    .join('path')
+    .attr('d', path)
+    .attr('fill', d => {
+      const n = iso2n[String(d.id)];
+      if (!n) return '#ECEEF2';
+      const v = deltas[n];
+      return v === undefined ? '#ECEEF2' : dColor(v);
+    })
+    .attr('stroke', '#FFFFFF')
+    .attr('stroke-width', 0.5)
+    .on('mousemove', (ev, d) => {
+      const n = iso2n[String(d.id)];
+      if (!n) return;
+      const v = deltas[n];
+      if (v === undefined) return;
+      const tt = document.getElementById('tooltip');
+      const box = document.querySelector('.map-wrap').getBoundingClientRect();
+      const x = ev.clientX - box.left;
+      const y = ev.clientY - box.top;
+      tt.style.left = (x + 14) + 'px';
+      tt.style.top  = (y - 70) + 'px';
+      const col = v >= 0 ? '#C63B2A' : '#1B4FBF';
+      tt.innerHTML = `
+        <div class="tt-country">${n}</div>
+        <div class="tt-row"><span>3-mo delta</span><span style="color:${col};font-weight:600">${v >= 0 ? '+' : ''}${v}%</span></div>
+        <div class="tt-row"><span>HTS</span><span style="font-family:var(--mono);font-size:11px">${activeMapHts}</span></div>`;
+      tt.style.opacity = 1;
+    })
+    .on('mouseleave', () => { document.getElementById('tooltip').style.opacity = 0; });
+}
+
+// ── Chart ────────────────────────────────────────────────────────
+let chartHts  = ['8541.43.0010'];
+let chartCtry = ['China', 'Vietnam'];
+let lineChart = null;
+
+function selAllHts()  { chartHts  = PRODUCTS.map(p => p.hts); renderChartPills(); renderLine(); }
+function selAllCtry() { chartCtry = [...COUNTRIES];            renderChartPills(); renderLine(); }
+
+function togHts(h) {
+  chartHts = chartHts.includes(h)
+    ? (chartHts.length > 1 ? chartHts.filter(x => x !== h) : chartHts)
+    : [...chartHts, h];
+  renderChartPills(); renderLine();
+}
+function togCtry(c) {
+  chartCtry = chartCtry.includes(c)
+    ? (chartCtry.length > 1 ? chartCtry.filter(x => x !== c) : chartCtry)
+    : [...chartCtry, c];
+  renderChartPills(); renderLine();
+}
+
+function renderChartPills() {
+  document.getElementById('chartHts').innerHTML = PRODUCTS.map(p => `
+    <button class="pill ${chartHts.includes(p.hts) ? 'on' : ''}"
+      style="${chartHts.includes(p.hts) ? `background:${p.color}15;color:${p.color};border-color:${p.color}` : ''}"
+      onclick="togHts('${p.hts}')">${p.short}</button>`).join('');
+
+  document.getElementById('chartCountry').innerHTML = COUNTRIES.map(c => `
+    <button class="pill ${chartCtry.includes(c) ? 'on' : ''}"
+      style="${chartCtry.includes(c) ? 'background:#1B4FBF12;color:#1B4FBF;border-color:#1B4FBF' : ''}"
+      onclick="togCtry('${c}')">${c}</button>`).join('');
+}
+
+function renderLine() {
+  const { usd, mw } = cumulative();
+  const latest   = usd[usd.length - 1];
+  const latestMw = mw[mw.length  - 1];
+  const prev     = usd[usd.length - 2] || latest;
+  const mom      = prev ? ((latest - prev) / prev * 100).toFixed(1) : 0;
+  const hLabel   = chartHts.length === PRODUCTS.length
+    ? 'All HTS' : chartHts.map(h => PRODUCTS.find(p => p.hts === h).short).join(' + ');
+  const cLabel   = chartCtry.length === COUNTRIES.length
+    ? 'All countries' : chartCtry.join(', ');
+
+  document.getElementById('chips').innerHTML = `
+    <div class="chip">Latest month &nbsp;<b>$${latest.toLocaleString()}M</b></div>
+    <div class="chip">Latest month &nbsp;<b>${latestMw.toLocaleString()} MW</b></div>
+    <div class="chip">MoM &nbsp;<b style="color:${mom >= 0 ? '#0F7A5A' : '#C63B2A'}">${mom >= 0 ? '+' : ''}${mom}%</b></div>
+    <div class="chip" style="font-size:11px;color:var(--text-3)">${hLabel} &nbsp;·&nbsp; ${cLabel}</div>`;
+
+  if (lineChart) lineChart.destroy();
+  lineChart = new Chart(document.getElementById('lineChart'), {
+    type: 'line',
+    data: {
+      labels: MONTHS,
+      datasets: [
+        {
+          label: 'Value ($M)',
+          data: usd,
+          borderColor: '#1B4FBF',
+          backgroundColor: 'rgba(27,79,191,0.05)',
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.38,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Volume (MW)',
+          data: mw,
+          borderColor: '#0F7A5A',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 3],
+          pointRadius: 0,
+          tension: 0.38,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#FFFFFF',
+          borderColor: '#E2E5EC',
+          borderWidth: 1,
+          titleColor: '#0D1117',
+          bodyColor: '#4A5160',
+          padding: 10,
+          callbacks: {
+            title: ctx => `${ctx[0].label} · ${chartHts.length} HTS · ${chartCtry.length} ${chartCtry.length === 1 ? 'country' : 'countries'}`,
+            label: ctx => ctx.dataset.yAxisID === 'y'
+              ? `  Value:  $${ctx.parsed.y.toLocaleString()}M`
+              : `  Volume: ${ctx.parsed.y.toLocaleString()} MW`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10, family: 'DM Mono' }, color: '#8B92A5', maxTicksLimit: 8, autoSkip: true }
+        },
+        y: {
+          position: 'left',
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { font: { size: 10, family: 'DM Mono' }, color: '#1B4FBF', callback: v => `$${v.toLocaleString()}M` },
+        },
+        y2: {
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: { font: { size: 10, family: 'DM Mono' }, color: '#0F7A5A', callback: v => `${v.toLocaleString()} MW` },
+        }
+      }
+    }
+  });
+}
+
+// ── Live data stub ───────────────────────────────────────────────
+function loadLive() {
+  const token = document.getElementById('apiToken').value.trim();
+  if (!token) { alert('Paste your USITC DataWeb API token first.'); return; }
+  document.getElementById('dataBadge').textContent = 'Connecting…';
+  // TODO: replace with actual USITC DataWeb API endpoint when confirmed
+  // fetch('https://dataweb.usitc.gov/api/...', { headers: { Authorization: `Bearer ${token}` } })
+  //   .then(r => r.json()).then(data => ingestLiveData(data))
+  setTimeout(() => {
+    alert('Live API endpoint pending USITC documentation confirmation.\nRunning on sample data.');
+    document.getElementById('dataBadge').textContent = 'Sample data';
+  }, 600);
+}
+
+// ── Init ─────────────────────────────────────────────────────────
+renderMapPills();
+renderChartPills();
+renderLine();
+
+d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(data => {
+  worldData = data;
+  renderMap();
+});
+</script>
+</body>
+</html>
